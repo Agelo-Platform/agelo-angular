@@ -1,0 +1,18 @@
+# Exclude large or environment-specific paths so the docker build
+# context stays small and reproducible. Without this the e2e
+# harness's Testcontainers BuildKit builder occasionally fails to
+# tar up the context (>1 GB once .angular/cache fills) and reports
+# an opaque "Failed to build image" error.
+node_modules
+.angular
+dist
+.git
+.idea
+.vscode
+.env
+.env.*
+*.log
+.DS_Store
+e2e/node_modules
+e2e/reports
+e2e/.pytest_cache
