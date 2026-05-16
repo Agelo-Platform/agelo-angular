@@ -11,10 +11,13 @@ import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzModalService } from 'ng-zorro-antd/modal';
+import { NzDropDownModule } from 'ng-zorro-antd/dropdown';
+import { NzMenuModule } from 'ng-zorro-antd/menu';
 import { ApiService } from '../../core/api.service';
 import { CategoryFormComponent } from './category-form.dialog';
 import { PromptFormComponent } from './prompt-form.dialog';
 import { ToastService } from '../../shared/dialogs/toast.service';
+import { DialogService } from '../../shared/dialogs/dialog.service';
 
 interface Category { id: string; name: string; }
 interface Prompt {
@@ -32,7 +35,7 @@ interface Prompt {
   imports: [
     CommonModule, FormsModule,
     NzCardModule, NzButtonModule, NzIconModule, NzInputModule, NzTagModule,
-    NzSpinModule, NzEmptyModule,
+    NzSpinModule, NzEmptyModule, NzDropDownModule, NzMenuModule,
   ],
   template: `
     <div class="page-header">
@@ -71,8 +74,29 @@ interface Prompt {
                 (click)="filterCat.set(c.id); refreshPrompts()"
               >
                 <span nz-icon nzType="folder-open"></span>
-                <span>{{ c.name }}</span>
+                <span class="cat-name">{{ c.name }}</span>
                 <span class="cnt">{{ countByCategory(c.id) }}</span>
+                <span
+                  nz-dropdown
+                  [nzDropdownMenu]="catMenu"
+                  nzPlacement="bottomRight"
+                  nzTrigger="click"
+                  class="cat-menu-trigger"
+                  (click)="$event.stopPropagation()"
+                  nz-tooltip="Category options"
+                >
+                  <span nz-icon nzType="ellipsis"></span>
+                </span>
+                <nz-dropdown-menu #catMenu="nzDropdownMenu">
+                  <ul nz-menu>
+                    <li nz-menu-item (click)="renameCategory(c)">
+                      <span nz-icon nzType="edit"></span> Rename
+                    </li>
+                    <li nz-menu-item nzDanger (click)="deleteCategory(c)">
+                      <span nz-icon nzType="delete"></span> Delete
+                    </li>
+                  </ul>
+                </nz-dropdown-menu>
               </li>
             } @empty {
               <li class="muted empty-li">No categories yet.</li>
@@ -157,13 +181,25 @@ interface Prompt {
     }
     .cat-list li.active .anticon { color: var(--c-primary); }
     .cat-list li .anticon { font-size: 16px; color: var(--c-text-subtle); }
+    .cat-list li .cat-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .cat-list li .cnt {
-      margin-left: auto;
       font-size: 11px;
       color: var(--c-text-subtle);
       background: var(--c-surface-2);
       padding: 2px 8px; border-radius: 999px;
+      flex-shrink: 0;
     }
+    .cat-menu-trigger {
+      flex-shrink: 0;
+      opacity: 0;
+      padding: 2px 4px;
+      border-radius: var(--radius);
+      color: var(--c-text-subtle);
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    .cat-list li:hover .cat-menu-trigger,
+    .cat-list li.active .cat-menu-trigger { opacity: 1; }
     .empty-li { padding: 8px 10px; cursor: default; color: var(--c-text-subtle); }
 
     .content-col { display: flex; flex-direction: column; gap: 16px; }
@@ -191,6 +227,7 @@ export class PromptsComponent implements OnInit {
   api = inject(ApiService);
   modal = inject(NzModalService);
   toast = inject(ToastService);
+  confirmer = inject(DialogService);
   router = inject(Router);
 
   cats = signal<Category[]>([]);
@@ -267,6 +304,50 @@ export class PromptsComponent implements OnInit {
         this.toast.error(err?.error?.message || 'Could not create category');
       }
     });
+  }
+
+  renameCategory(cat: Category) {
+    const ref = this.modal.create<CategoryFormComponent, string>({
+      nzTitle: `Rename category`,
+      nzContent: CategoryFormComponent,
+      nzWidth: 480,
+      nzOkText: 'Rename',
+      nzCancelText: 'Cancel',
+      nzOnOk: (instance) => instance.submit(),
+    });
+    ref.componentInstance!.initialName = cat.name;
+    ref.afterClose.subscribe(async (name) => {
+      if (!name || name === cat.name) return;
+      try {
+        await firstValueFrom(this.api.patch(`/prompt-categories/${cat.id}`, { name }));
+        await this.refreshCats();
+        this.toast.success(`Category renamed to "${name}"`);
+      } catch (err: any) {
+        this.toast.error(err?.error?.message || 'Could not rename category');
+      }
+    });
+  }
+
+  async deleteCategory(cat: Category) {
+    const ok = await this.confirmer.confirm({
+      title: `Delete category "${cat.name}"?`,
+      message: 'The category must be empty before it can be deleted.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await firstValueFrom(this.api.delete(`/prompt-categories/${cat.id}`));
+      if (this.filterCat() === cat.id) {
+        this.filterCat.set(null);
+      }
+      await this.refreshCats();
+      await this.refreshCounts();
+      await this.refreshPrompts();
+      this.toast.success(`Category "${cat.name}" deleted`);
+    } catch (err: any) {
+      this.toast.error(err?.error?.message || 'Could not delete category');
+    }
   }
 
   newPrompt() {

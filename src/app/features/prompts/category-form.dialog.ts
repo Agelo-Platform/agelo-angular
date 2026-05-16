@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NzModalRef } from 'ng-zorro-antd/modal';
@@ -26,6 +26,7 @@ import { NzInputModule } from 'ng-zorro-antd/input';
   `],
 })
 export class CategoryFormComponent {
+  @Input() set initialName(v: string) { this.name = v; }
   name = '';
   constructor(private ref: NzModalRef) {}
   submit(ev?: Event) {
