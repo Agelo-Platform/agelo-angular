@@ -75,6 +75,9 @@ import {
             </button>
           </ng-template>
           <ng-template #extraTpl>
+            <button nz-button nzType="text" (click)="clone(t)" nz-tooltip="Clone card type" type="button">
+              <span nz-icon nzType="copy"></span>
+            </button>
             <button nz-button nzType="text" nzDanger (click)="remove(t)" nz-tooltip="Delete card type">
               <span nz-icon nzType="delete"></span>
             </button>
@@ -282,6 +285,30 @@ export class CardTypesPanel {
         this.changed.emit();
       } catch (err: any) {
         this.toast.error(err?.error?.message || 'Could not rename');
+      }
+    });
+  }
+
+  clone(t: CardType) {
+    const defaultName = `${t.name}_Copy`;
+    const ref = this.modal.create<CardTypeRenameComponent, string>({
+      nzTitle: `Clone card type "${t.name}"`,
+      nzContent: CardTypeRenameComponent,
+      nzData: { name: defaultName } as any,
+      nzOkText: 'Clone',
+      nzCancelText: 'Cancel',
+      nzOnOk: (instance) => instance.submit(),
+    });
+    ref.afterClose.subscribe(async (name) => {
+      if (!name) return;
+      try {
+        await firstValueFrom(
+          this.api.post(`/organizations/${this.orgId}/card-types/${t.id}/clone`, { name }),
+        );
+        this.toast.success(`"${t.name}" cloned`);
+        this.changed.emit();
+      } catch (err: any) {
+        this.toast.error(err?.error?.message || 'Could not clone card type');
       }
     });
   }
