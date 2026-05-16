@@ -111,7 +111,7 @@ interface HistoryEntry {
                 </li>
               </ul>
             </nz-dropdown-menu>
-            <button nz-button nzType="text" (click)="ref.close()" nz-tooltip="Close">
+            <button nz-button nzType="text" (click)="tryClose()" nz-tooltip="Close">
               <span nz-icon nzType="close"></span>
             </button>
           </div>
@@ -799,6 +799,22 @@ export class CardDetailComponent implements OnInit {
 
   fieldsDirty(): boolean {
     return JSON.stringify(this.fieldDraft) !== JSON.stringify(this.fieldOriginal);
+  }
+
+  async tryClose() {
+    if (!this.titleDirty() && !this.fieldsDirty()) {
+      this.ref.close();
+      return;
+    }
+    const result = await this.confirmer.unsavedChanges();
+    if (result === 'save') {
+      if (this.titleDirty()) await this.saveTitle();
+      if (this.fieldsDirty()) await this.saveFields();
+      this.ref.close();
+    } else if (result === 'discard') {
+      this.ref.close();
+    }
+    // null = cancel, stay open
   }
 
   async ngOnInit() { await this.refresh(); }
