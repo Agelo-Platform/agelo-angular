@@ -122,7 +122,7 @@ interface HistoryEntry {
                 <input
                   nz-input
                   class="title-input"
-                  [(ngModel)]="titleDraft"
+                  [ngModel]="titleDraft()" (ngModelChange)="titleDraft.set($event)"
                   placeholder="Card title"
                 />
                 @if (titleDirty()) {
@@ -755,7 +755,7 @@ export class CardDetailComponent implements OnInit {
   // scoped to the chosen card type.
   linkableCardsCache: Record<string, any[]> = {};
 
-  titleDraft = '';
+  titleDraft = signal('');
   fieldDraft: Record<string, any> = {};
   fieldOriginal: Record<string, any> = {};
 
@@ -794,7 +794,7 @@ export class CardDetailComponent implements OnInit {
 
   titleDirty = computed(() => {
     const c = this.card();
-    return !!c && this.titleDraft.trim() !== '' && this.titleDraft.trim() !== c.title;
+    return !!c && this.titleDraft().trim() !== '' && this.titleDraft().trim() !== c.title;
   });
 
   fieldsDirty(): boolean {
@@ -825,7 +825,7 @@ export class CardDetailComponent implements OnInit {
       this.flow.set(flow);
       this.prompts.set(prompts);
       this.mcpServers.set(mcpServers);
-      this.titleDraft = card.title;
+      this.titleDraft.set(card.title);
 
       const draft: Record<string, any> = {};
       for (const f of card.type.customFields) {
@@ -911,7 +911,7 @@ export class CardDetailComponent implements OnInit {
   async saveTitle() {
     const c = this.card();
     if (!c) return;
-    const title = this.titleDraft.trim();
+    const title = this.titleDraft().trim();
     if (!title || title === c.title) return;
     this.busy.set(true);
     try {
