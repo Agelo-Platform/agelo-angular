@@ -116,8 +116,9 @@ When(
     await expect(modal).toBeVisible();
     await modal.locator('input[name=name]').fill(name);
 
-    // Open the org select inside the modal.
-    await modal.locator('.ant-select').click();
+    // Open the org select inside the modal. The dialog also has an
+    // "Expires" select, so target the org one by name to stay unambiguous.
+    await modal.locator('nz-select[name="orgId"]').click();
     await this.page.locator('.ant-select-item-option').filter({ hasText: orgs[0].title }).first().click();
 
     // Click the modal's primary OK button to generate.

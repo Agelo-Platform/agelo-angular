@@ -106,15 +106,24 @@ When('I open that card', async function (this: AgeloWorld) {
   const card = title
     ? this.page.locator('.kanban-card').filter({ hasText: title }).first()
     : this.page.locator('.kanban-card').first();
-  await card.click();
+  // The card is a cdkDrag element, so Playwright's synthetic click is
+  // swallowed by the drag handler. Open it via its keyboard path instead
+  // (the card is tabindex=0 with (keyup.enter)="open(card)").
+  await card.focus();
+  await this.page.keyboard.press('Enter');
   // ng-zorro modal renders as .ant-modal
   await expect(this.page.locator('.ant-modal-content').last()).toBeVisible();
 });
 
 When('I transition it to {string}', async function (this: AgeloWorld, columnName: string) {
   const modal = this.page.locator('.ant-modal-content').last();
-  // Open the rail status select.
-  await modal.locator('.rail-select').click();
+  // The rail now has Status, Priority, and Due-date controls that all
+  // share .rail-select, so scope to the Status row by its label.
+  await modal
+    .locator('.rail-row')
+    .filter({ has: this.page.locator('.rail-label', { hasText: 'Status' }) })
+    .locator('.rail-select')
+    .click();
   // Wait for the PATCH /cards/:id/status to actually complete before
   // reloading — the SPA fires the request from ngModelChange and the
   // page reload would otherwise race ahead of it on a fast machine.
