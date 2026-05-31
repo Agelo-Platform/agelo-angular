@@ -1,0 +1,64 @@
+# CI-only Docker Compose for the e2e suite. Pulls the agelo-server
+# image from GHCR (so the e2e harness exercises the same artifact
+# that ships) and builds the Angular SPA from the current checkout.
+#
+# Driven by Testcontainers' DockerComposeEnvironment. Container ports
+# use `published: 0` so the suite can run anywhere without colliding
+# with anything else on the runner.
+
+services:
+  agelo-db:
+    image: mysql:8.0
+    container_name: agelo-db-e2e
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpw}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-agelo}
+      MYSQL_USER: ${MYSQL_USER:-agelo}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-agelo}
+    command: ["--default-authentication-plugin=mysql_native_password"]
+    ports:
+      - target: 3306
+        published: 0
+        protocol: tcp
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-rootpw}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  agelo-backend:
+    image: ${AGELO_SERVER_IMAGE:-ghcr.io/agelo-platform/agelo-server:latest}
+    container_name: agelo-backend-e2e
+    depends_on:
+      agelo-db:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__Default: "Server=agelo-db;Port=3306;Database=${MYSQL_DATABASE:-agelo};User=${MYSQL_USER:-agelo};Password=${MYSQL_PASSWORD:-agelo};"
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:3000
+      Cors__Origins: '*'
+      RateLimit: off
+      Jwt__Secret: agelo-e2e-jwt-secret-do-not-ship
+      Jwt__Issuer: agelo
+      Jwt__Audience: agelo-spa
+      Jwt__Lifetime: 12:00:00
+      Sa__BootstrapEmail: architect@agelo.local
+      Sa__BootstrapPassword: Architect#1
+    ports:
+      - target: 3000
+        published: 0
+        protocol: tcp
+
+  agelo-frontend:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        API_BASE_URL: __E2E_API__
+    container_name: agelo-frontend-e2e
+    depends_on:
+      - agelo-backend
+    ports:
+      - target: 80
+        published: 0
+        protocol: tcp

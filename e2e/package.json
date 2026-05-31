@@ -1,0 +1,22 @@
+{
+  "name": "agelo-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "End-to-end BDD test suite for Agelo (Playwright + Cucumber + Testcontainers).",
+  "scripts": {
+    "test": "cucumber-js",
+    "test:debug": "cross-env DEBUG=1 cucumber-js",
+    "test:keepalive": "cross-env AGELO_KEEP_STACK=1 cucumber-js",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cucumber/cucumber": "^11.0.1",
+    "@playwright/test": "^1.47.2",
+    "@types/node": "^20.14.10",
+    "cross-env": "^7.0.3",
+    "playwright": "^1.47.2",
+    "testcontainers": "^10.13.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.3"
+  }
+}
