@@ -1,0 +1,107 @@
+name: build-image
+
+# Builds the agelo-angular Docker image (Angular SPA served via nginx)
+# and publishes it to GHCR tagged with the GitVersion-derived
+# AssemblySemVer plus :latest and a sha-prefixed tag for reproducibility.
+#
+# Triggers
+#   - push to master       → publish a new image
+#   - workflow_dispatch    → re-run on demand against any ref
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Ref (branch / tag / SHA) to build from
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  version:
+    name: gitversion / compute
+    runs-on: ubuntu-latest
+    outputs:
+      assemblySemVer: ${{ steps.gv.outputs.assemblySemVer }}
+      semVer: ${{ steps.gv.outputs.semVer }}
+      majorMinor: ${{ steps.gv.outputs.major }}.${{ steps.gv.outputs.minor }}
+      shortSha: ${{ steps.gv.outputs.shortSha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          fetch-depth: 0
+
+      - uses: gittools/actions/gitversion/setup@v3.2.1
+        with:
+          versionSpec: '6.x'
+
+      - id: gv
+        uses: gittools/actions/gitversion/execute@v3.2.1
+        with:
+          useConfigFile: true
+          configFilePath: gitversion.yml
+
+      - run: |
+          echo "AssemblySemVer = ${{ steps.gv.outputs.assemblySemVer }}"
+          echo "SemVer         = ${{ steps.gv.outputs.semVer }}"
+          echo "ShortSha       = ${{ steps.gv.outputs.shortSha }}"
+
+  docker:
+    name: docker / ghcr
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - id: image
+        run: |
+          owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          repo=$(echo '${{ github.event.repository.name }}' | tr '[:upper:]' '[:lower:]')
+          echo "name=${{ env.REGISTRY }}/${owner}/${repo}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=raw,value=${{ needs.version.outputs.assemblySemVer }}
+            type=raw,value=${{ needs.version.outputs.semVer }}
+            type=raw,value=${{ needs.version.outputs.majorMinor }}
+            type=raw,value=sha-${{ needs.version.outputs.shortSha }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=Agelo Angular SPA
+            org.opencontainers.image.description=Angular 18 single-page app for the Agelo platform
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.version.outputs.assemblySemVer }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=MIT
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
