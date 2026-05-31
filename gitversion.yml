@@ -1,0 +1,40 @@
+# GitVersion v6 configuration.
+#
+# Strategy: ContinuousDeployment workflow — every commit on master is
+# shippable. Versions auto-increment from the latest vX.Y.Z tag in the
+# repo (or from 0.0.0 if no tag). Push a tag like v0.1.0 to anchor the
+# next published image at that version.
+#
+# AssemblySemVer is what the build-image workflow stamps onto the
+# Docker image tags.
+
+mode: ContinuousDeployment
+assembly-versioning-scheme: MajorMinorPatch
+assembly-file-versioning-scheme: MajorMinorPatchTag
+tag-prefix: '[vV]'
+major-version-bump-message: '\+semver:\s?(breaking|major)'
+minor-version-bump-message: '\+semver:\s?(feature|minor)'
+patch-version-bump-message: '\+semver:\s?(fix|patch)'
+no-bump-message: '\+semver:\s?(none|skip)'
+commit-message-incrementing: Enabled
+
+branches:
+  master:
+    regex: ^(main|master)$
+    label: ''
+    increment: Patch
+    is-main-branch: true
+    pre-release-weight: 55000
+  feature:
+    regex: ^(features?|stories|story)[/-]
+    label: alpha
+    increment: Minor
+    source-branches: ['master']
+  pull-request:
+    regex: ^(pull|pull\-requests|pr)[/-]
+    label: pr
+    increment: Inherit
+    source-branches: ['master', 'feature']
+
+ignore:
+  sha: []
